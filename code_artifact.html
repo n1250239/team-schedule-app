@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ネプリーグ風！トロッコ日程調整 & 共有カレンダー</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        .font-game {
+            font-family: 'Dela Gothic One', cursive;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        
+        /* Gold Neon Gradient Text */
+        .gold-neon-text {
+            background: linear-gradient(135deg, #fffbeb 0%, #fde047 30%, #eab308 70%, #ca8a04 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 12px rgba(234, 179, 8, 0.4);
+        }
+
+        /* Arcade Frame Border */
+        .arcade-border {
+            border: 3px solid #f59e0b;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.3), inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Track Perspective CSS Canvas/Animation */
+        .track-container {
+            perspective: 400px;
+            overflow: hidden;
+        }
+        .track-lane {
+            transform-style: preserve-3d;
+            transform: rotateX(60deg) translateY(-20px);
+        }
+
+        /* Pulsing Glow */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
+            50% { box-shadow: 0 0 30px rgba(239, 68, 68, 1); }
+        }
+        .glow-red {
+            animation: pulse-glow 1.5s infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 0 15px rgba(34, 197, 94, 0.6); }
+            50% { box-shadow: 0 0 30px rgba(34, 197, 94, 1); }
+        }
+        .glow-green {
+            animation: pulse-green 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased bg-slate-950 text-slate-100 selection:bg-amber-500 selection:text-slate-950">
+
+    <!-- ヘッダー (ネプリーグ風アーケードヘッダー) -->
+    <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b-2 border-amber-500/50 sticky top-0 z-30 shadow-2xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-gradient-to-tr from-amber-500 via-rose-500 to-yellow-400 text-slate-950 rounded-xl shadow-lg font-bold transform -rotate-3 hover:rotate-0 transition-transform">
+                    <i data-lucide="train-front" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div>
+                    <h1 class="font-game text-lg sm:text-xl gold-neon-text tracking-wider">
+                        トロッコ日程アドベンチャー
+                    </h1>
+                    <div class="flex items-center gap-2 text-[10px] text-amber-400/90 font-bold">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>グループリアルタイム同期中</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右上アクション -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- サウンド切り替え -->
+                <button id="sound-toggle-btn" onclick="toggleSound()" class="p-2 rounded-xl bg-slate-800 border border-slate-700 hover:border-amber-500/50 text-amber-400 text-xs font-bold transition-all flex items-center gap-1.5">
+                    <i id="sound-icon" data-lucide="volume-2" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">サウンド ON</span>
+                </button>
+
+                <button onclick="openCreatePollModal()" class="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-game px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-lg shadow-amber-500/20 active:scale-95 transition-all">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>新・トロッコ調整</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインレイアウト -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6">
+        
+        <!-- 左側ナビゲーション & メンバー -->
+        <aside class="w-full lg:w-64 flex flex-col gap-5 shrink-0">
+            <!-- モード切り替えタブ -->
+            <div class="bg-slate-900 rounded-2xl p-2 border border-slate-800 shadow-xl flex flex-row lg:flex-col gap-1.5">
+                <button id="tab-btn-polls" onclick="switchTab('polls')" class="flex-1 flex items-center justify-center lg:justify-start gap-2.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-md">
+                    <i data-lucide="train-front" class="w-4.5 h-4.5"></i>
+                    <span>トロッコ日程調整</span>
+                    <span id="badge-active-polls" class="ml-auto bg-slate-950 text-amber-400 px-2 py-0.5 rounded-full text-[10px] font-black hidden lg:inline">0</span>
+                </button>
+                <button id="tab-btn-calendar" onclick="switchTab('calendar')" class="flex-1 flex items-center justify-center lg:justify-start gap-2.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+                    <i data-lucide="calendar" class="w-4.5 h-4.5"></i>
+                    <span>確定カレンダー</span>
+                </button>
+            </div>
+
+            <!-- メンバー管理 -->
+            <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800 shadow-xl space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5 font-game">
+                        <i data-lucide="users" class="w-4 h-4"></i> 参加メンバー
+                    </h2>
+                    <button onclick="openMemberModal()" class="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-0.5 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/30">
+                        <i data-lucide="user-plus" class="w-3 h-3"></i> 追加
+                    </button>
+                </div>
+                <div id="member-sidebar-list" class="space-y-1.5 text-xs max-h-48 overflow-y-auto pr-1">
+                    <!-- JS動的レンダリング -->
+                </div>
+            </div>
+
+            <!-- 遊び方ミニガイド -->
+            <div class="bg-gradient-to-br from-slate-900 to-indigo-950/60 rounded-2xl p-4 border border-indigo-500/30 shadow-xl space-y-2 text-xs">
+                <h3 class="font-bold text-indigo-300 flex items-center gap-1.5 font-game">
+                    <i data-lucide="gamepad-2" class="w-4 h-4 text-indigo-400"></i> トロッコ調整の遊び方
+                </h3>
+                <ol class="list-decimal list-inside space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+                    <li>幹事が<span class="text-amber-400 font-bold">候補日時</span>を複数設定して調整を作成！</li>
+                    <li>メンバーは名前に乗って<span class="text-amber-400 font-bold">トロッコ回答モード</span>に発進！</li>
+                    <li>候補日時ごとに<span class="text-emerald-400 font-bold">「左：◯ 行ける」</span> or <span class="text-rose-400 font-bold">「右：× 不可」</span> をキーボード(← →)やボタンで瞬時に判定！</li>
+                    <li>みんなの回答が集計され、最高得点の日程をカレンダーへ即登録！</li>
+                </ol>
+            </div>
+        </aside>
+
+        <!-- 右側メインコンテンツ -->
+        <section class="flex-1 flex flex-col gap-4 min-w-0">
+
+            <!-- ================= TAB 1: トロッコ日程調整 (集計・一覧) ================= -->
+            <div id="view-polls-container" class="space-y-4 flex-1 flex flex-col">
+                <div class="bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-xl flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                        <h2 class="font-game text-base sm:text-lg text-amber-400 flex items-center gap-2">
+                            <i data-lucide="trophy" class="w-5 h-5 text-amber-400"></i>
+                            進行中のトロッコ日程調整
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">二択トロッコで全員の都合を楽しくあつめよう！</p>
+                    </div>
+                </div>
+
+                <div id="polls-list-wrapper" class="space-y-4 flex-1">
+                    <!-- JSで動的に調整カードを生成 -->
+                </div>
+            </div>
+
+            <!-- ================= TAB 2: 確定カレンダー ================= -->
+            <div id="view-calendar-container" class="hidden space-y-4 flex-1 flex flex-col">
+                <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800 shadow-xl flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <h2 id="calendar-month-year-label" class="font-game text-lg text-amber-400"></h2>
+                        <button onclick="calGoToday()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg border border-slate-700 text-slate-200">今日</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="calPrevMonth()" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <button onclick="calNextMonth()" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800 shadow-xl flex-1 flex flex-col">
+                    <div class="grid grid-cols-7 mb-2 text-center text-xs font-bold text-slate-400 border-b border-slate-800 pb-2">
+                        <div class="text-rose-400">日</div>
+                        <div>月</div>
+                        <div>火</div>
+                        <div>水</div>
+                        <div>木</div>
+                        <div>金</div>
+                        <div class="text-blue-400">土</div>
+                    </div>
+                    <div id="calendar-grid-cells" class="grid grid-cols-7 gap-1 flex-1"></div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- ================= モーダル: ネプリーグ風 トロッコアドベンチャー回答ゲーム ================= -->
+    <div id="trolley-game-modal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 hidden overflow-hidden">
+        
+        <!-- ゲーム用ヘッダー -->
+        <div class="w-full max-w-2xl flex items-center justify-between pb-3 px-2 border-b border-amber-500/30">
+            <div class="flex items-center gap-2">
+                <span class="font-game text-xs sm:text-sm bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 px-3 py-1 rounded-full">
+                    ネプリーグ風 トロッコアドベンチャー
+                </span>
+                <span id="trolley-responder-name" class="text-xs font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30"></span>
+            </div>
+            <button onclick="closeTrolleyGameModal()" class="text-slate-400 hover:text-white p-1">
+                <i data-lucide="x-circle" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <!-- ゲームメインスクリーン -->
+        <div class="w-full max-w-2xl bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-950 rounded-3xl arcade-border mt-3 p-4 sm:p-6 flex flex-col items-center relative overflow-hidden min-h-[440px]">
+            
+            <!-- トロッコステージ情報 -->
+            <div class="text-center space-y-1 mb-2 z-10">
+                <div id="trolley-stage-badge" class="inline-block font-game text-xs text-amber-400 tracking-widest bg-amber-500/20 px-3 py-0.5 rounded-full border border-amber-500/40">
+                    STAGE 1 / 5
+                </div>
+                <h3 id="trolley-candidate-title" class="font-game text-base sm:text-xl text-white drop-shadow-md">
+                    2026年10月25日(日) 14:00〜16:00
+                </h3>
+            </div>
+
+            <!-- 線路・トロッコ演出領域 (視覚的3D/レトロトラック) -->
+            <div class="w-full flex-1 relative flex flex-col items-center justify-end overflow-hidden my-2 border-y border-slate-800 bg-gradient-to-b from-slate-950 via-slate-900 to-amber-950/20 rounded-2xl">
+                
+                <!-- 背景流れるライン -->
+                <div class="absolute inset-0 opacity-20 pointer-events-none flex justify-around">
+                    <div class="w-1 bg-amber-500/40 h-full"></div>
+                    <div class="w-1 bg-amber-500/40 h-full"></div>
+                </div>
+
+                <!-- 2択 分岐標識 (左: ◯ 行ける / 右: × 不可) -->
+                <div class="w-full grid grid-cols-2 gap-3 sm:gap-6 px-4 z-10 mb-8">
+                    <!-- 左看板 (◯) -->
+                    <div id="sign-left" class="bg-gradient-to-b from-emerald-600 to-emerald-800 border-2 border-emerald-300 rounded-2xl p-3 sm:p-4 text-center shadow-xl transition-all duration-300 glow-green">
+                        <div class="font-game text-rose-300 text-2xl sm:text-3xl mb-0.5">◯</div>
+                        <div class="font-game text-white text-xs sm:text-base">参加できる！</div>
+                        <div class="text-[10px] text-emerald-100/80 font-bold mt-1">【 ← キー または ボタン 】</div>
+                    </div>
+
+                    <!-- 右看板 (×) -->
+                    <div id="sign-right" class="bg-gradient-to-b from-rose-600 to-rose-800 border-2 border-rose-300 rounded-2xl p-3 sm:p-4 text-center shadow-xl transition-all duration-300">
+                        <div class="font-game text-amber-300 text-2xl sm:text-3xl mb-0.5">× / △</div>
+                        <div class="font-game text-white text-xs sm:text-base">不可 / 調整が必要</div>
+                        <div class="text-[10px] text-rose-100/80 font-bold mt-1">【 → キー または ボタン 】</div>
+                    </div>
+                </div>
+
+                <!-- トロッコ本体グラフィック -->
+                <div id="trolley-cart" class="z-20 transition-all duration-300 transform translate-y-0 my-2">
+                    <div class="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 border-2 border-yellow-200 rounded-xl px-6 py-3 shadow-2xl flex items-center gap-3">
+                        <i data-lucide="train-front" class="w-8 h-8 text-slate-950 animate-bounce"></i>
+                        <div>
+                            <div class="font-game text-slate-950 text-xs">運命の操縦中</div>
+                            <div id="trolley-direction-text" class="font-game text-rose-950 text-sm">左 (◯) へ傾き中</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 線路足元 -->
+                <div class="w-full h-3 bg-gradient-to-r from-slate-700 via-amber-600 to-slate-700"></div>
+            </div>
+
+            <!-- 操作ボタン (スマホ・画面タップ用) -->
+            <div class="w-full grid grid-cols-2 gap-4 mt-2 z-10">
+                <button onclick="chooseTrolleyOption('O')" class="py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-game text-sm sm:text-base rounded-2xl shadow-lg shadow-emerald-900/40 border-2 border-emerald-300 active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                    <span>左！ ◯ 参加可能</span>
+                </button>
+                <button onclick="chooseTrolleyOption('X')" class="py-3.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white font-game text-sm sm:text-base rounded-2xl shadow-lg shadow-rose-900/40 border-2 border-rose-300 active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <span>右！ × 不可</span>
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- ステージ進行ドット指示器 -->
+            <div id="trolley-progress-dots" class="flex items-center gap-2 mt-3">
+                <!-- JSで生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル: トロッコ日程調整の新規作成 -->
+    <div id="create-poll-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                <h3 class="font-game text-base text-amber-400 flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                    新規トロッコ日程調整を作成
+                </h3>
+                <button onclick="closeCreatePollModal()" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="create-poll-form" onsubmit="handleSavePoll(event)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">イベント件名 <span class="text-rose-400">*</span></label>
+                    <input type="text" id="poll-title-input" required placeholder="例: 秋のサークル親睦会・合宿" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-amber-500 focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">回答締め切り <span class="text-rose-400">*</span></label>
+                        <input type="date" id="poll-deadline-input" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-amber-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">カテゴリ</label>
+                        <select id="poll-category-input" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100">
+                            <option value="event">イベント・親睦会</option>
+                            <option value="meeting">ミーティング・打ち合わせ</option>
+                            <option value="practice">練習・活動</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">概要・メモ</label>
+                    <input type="text" id="poll-note-input" placeholder="場所の候補や回答者へのメッセージ" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100">
+                </div>
+
+                <!-- 候補日時（トロッコの各問題になります） -->
+                <div class="space-y-2 pt-2 border-t border-slate-800">
+                    <div class="flex items-center justify-between">
+                        <label class="font-bold text-amber-400">トロッコ候補日時リスト (各ステージ) <span class="text-rose-400">*</span></label>
+                        <button type="button" onclick="addCandidateRow()" class="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 text-[11px]">
+                            <i data-lucide="plus" class="w-3 h-3"></i> 候補日時を追加
+                        </button>
+                    </div>
+                    <div id="candidates-input-container" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        <!-- JSで動的生成 -->
+                    </div>
+                </div>
+
+                <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-800">
+                    <button type="button" onclick="closeCreatePollModal()" class="px-4 py-2 rounded-xl border border-slate-700 text-slate-300 font-bold">
+                        キャンセル
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-game shadow-lg">
+                        リクエストを発行
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: メンバー追加 -->
+    <div id="add-member-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4">
+            <h3 class="font-game text-base text-amber-400">新しいメンバーを追加</h3>
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">名前 <span class="text-rose-400">*</span></label>
+                <input type="text" id="new-member-name-input" placeholder="例: ネプ 太郎" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs focus:border-amber-500 focus:outline-none">
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button onclick="closeMemberModal()" class="px-4 py-2 rounded-xl border border-slate-700 text-slate-300 text-xs font-bold">
+                    キャンセル
+                </button>
+                <button onclick="saveMember()" class="px-5 py-2 rounded-xl bg-amber-500 text-slate-950 font-game text-xs">
+                    追加
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE SDK & GAME LOGIC MODULE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // FIREBASE SETUP
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'nepleague-schedule-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-key",
+            authDomain: "demo.firebaseapp.com",
+            projectId: "demo-project",
+            storageBucket: "demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:demo"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // WEB AUDIO API SOUND SYNTHESIZER
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        window.toggleSound = function() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('sound-toggle-btn');
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                btn.classList.remove('opacity-50');
+                btn.querySelector('span').textContent = 'サウンド ON';
+            } else {
+                btn.classList.add('opacity-50');
+                btn.querySelector('span').textContent = 'サウンド OFF';
+            }
+        };
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'steer') {
+                // トロッコレーンチェンジ音
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'select') {
+                // 決定音
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(880, now + 0.08);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'fanfare') {
+                // ファンファーレ
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'sine';
+                    o.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    g.gain.setValueAtTime(0.2, now + idx * 0.1);
+                    g.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.25);
+                    o.start(now + idx * 0.1);
+                    o.stop(now + idx * 0.1 + 0.25);
+                });
+            }
+        }
+
+        // STATE
+        let currentUser = null;
+        let members = [];
+        let polls = [];
+        let events = [];
+        let activeTab = 'polls';
+
+        // TROLLEY GAME STATE
+        let currentGamePoll = null;
+        let currentGameResponder = null;
+        let currentStageIndex = 0;
+        let gameAnswers = {}; // { candidateId: 'O' | 'X' }
+        let currentDirection = 'O'; // 'O' (Left) or 'X' (Right)
+
+        // INIT & LISTENERS
+        async function initApp() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                await signInAnonymously(auth);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (!user) return;
+                currentUser = user;
+
+                // メンバー購読
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), (snap) => {
+                    members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    if (members.length === 0) seedMembers();
+                    renderMembersSidebar();
+                });
+
+                // トロッコ調整購読
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'polls'), (snap) => {
+                    polls = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    renderPollsList();
+                });
+
+                // イベント（確定予定）購読
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'events'), (snap) => {
+                    events = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    renderCalendar();
+                });
+            });
+
+            // キーボード操作リスナー (トロッコ操作用)
+            window.addEventListener('keydown', (e) => {
+                const modal = document.getElementById('trolley-game-modal');
+                if (modal.classList.contains('hidden')) return;
+
+                if (e.key === 'ArrowLeft') {
+                    setTrolleyDirection('O');
+                } else if (e.key === 'ArrowRight') {
+                    setTrolleyDirection('X');
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    chooseTrolleyOption(currentDirection);
+                }
+            });
+        }
+
+        async function seedMembers() {
+            const defaults = ['名倉 潤', '原田 泰造', '堀内 健'];
+            for (const name of defaults) {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), { name });
+            }
+        }
+
+        // SIDEBAR & TABS
+        window.switchTab = function(tab) {
+            activeTab = tab;
+            const viewPolls = document.getElementById('view-polls-container');
+            const viewCal = document.getElementById('view-calendar-container');
+            const btnPolls = document.getElementById('tab-btn-polls');
+            const btnCal = document.getElementById('tab-btn-calendar');
+
+            if (tab === 'polls') {
+                viewPolls.classList.remove('hidden');
+                viewCal.classList.add('hidden');
+                btnPolls.className = "flex-1 flex items-center justify-center lg:justify-start gap-2.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-md";
+                btnCal.className = "flex-1 flex items-center justify-center lg:justify-start gap-2.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60";
+            } else {
+                viewPolls.classList.add('hidden');
+                viewCal.classList.remove('hidden');
+                btnCal.className = "flex-1 flex items-center justify-center lg:justify-start gap-2.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-md";
+                btnPolls.className = "flex-1 flex items-center justify-center lg:justify-start gap-2.5 px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60";
+            }
+        };
+
+        function renderMembersSidebar() {
+            const container = document.getElementById('member-sidebar-list');
+            container.innerHTML = '';
+            members.forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center gap-2 p-2 bg-slate-950 rounded-xl border border-slate-800/80 text-slate-200 font-bold';
+                item.innerHTML = `
+                    <div class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-[10px] font-black">
+                        ${m.name.charAt(0)}
+                    </div>
+                    <span class="truncate">${escapeHtml(m.name)}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // POLLS RENDER & AGGREGATION
+        function renderPollsList() {
+            const container = document.getElementById('polls-list-wrapper');
+            container.innerHTML = '';
+
+            const activePollsCount = polls.filter(p => !p.isDetermined).length;
+            document.getElementById('badge-active-polls').textContent = activePollsCount;
+
+            if (polls.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-slate-900 rounded-3xl p-8 border border-slate-800 text-center space-y-3">
+                        <i data-lucide="train-front" class="w-12 h-12 text-amber-500/40 mx-auto"></i>
+                        <p class="text-slate-400 font-bold text-sm">現在、進行中のトロッコ日程調整はありません</p>
+                        <button onclick="openCreatePollModal()" class="px-4 py-2 bg-amber-500 text-slate-950 font-game rounded-xl text-xs">
+                            新しい調整を作成する
+                        </button>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            polls.forEach(poll => {
+                const card = document.createElement('div');
+                card.className = `bg-slate-900 rounded-3xl p-5 border ${poll.isDetermined ? 'border-slate-800 opacity-80' : 'border-amber-500/40 shadow-2xl shadow-amber-500/5'} space-y-4`;
+
+                const candidates = poll.candidates || [];
+                const responses = poll.responses || {};
+                const responseCount = Object.keys(responses).length;
+
+                // 各候補日の集計計算
+                let maxScore = -1;
+                let bestCandId = null;
+
+                const candidateStats = candidates.map(c => {
+                    let oCount = 0;
+                    let xCount = 0;
+                    Object.values(responses).forEach(resp => {
+                        if (resp[c.id] === 'O') oCount++;
+                        else if (resp[c.id] === 'X') xCount++;
+                    });
+                    const score = oCount * 2;
+                    if (score > maxScore && (oCount + xCount > 0)) {
+                        maxScore = score;
+                        bestCandId = c.id;
+                    }
+                    return { ...c, oCount, xCount, score };
+                });
+
+                card.innerHTML = `
+                    <!-- カード上部ヘッダー -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                ${poll.isDetermined ? 
+                                    '<span class="bg-slate-800 text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-full">確定済み</span>' : 
+                                    '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black px-2.5 py-0.5 rounded-full">トロッコ受付中</span>'
+                                }
+                                <h3 class="font-game text-base sm:text-lg text-slate-100">${escapeHtml(poll.title)}</h3>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-slate-400 mt-1 font-bold">
+                                <span><i data-lucide="clock" class="w-3.5 h-3.5 inline"></i> 締切: ${poll.deadline}</span>
+                                <span>回答人数: ${responseCount}名</span>
+                            </div>
+                        </div>
+
+                        ${!poll.isDetermined ? `
+                            <!-- トロッコ回答スタートボタン -->
+                            <div class="flex items-center gap-2">
+                                <select id="responder-select-${poll.id}" class="bg-slate-950 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl px-2.5 py-2">
+                                    ${members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}
+                                </select>
+                                <button onclick="startTrolleyGame('${poll.id}')" class="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-game rounded-xl text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all">
+                                    <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                                    <span>トロッコ発進！</span>
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    ${poll.note ? `<p class="text-xs text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">${escapeHtml(poll.note)}</p>` : ''}
+
+                    <!-- トロッコ候補日 スコア集計テーブル -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="text-slate-400 font-bold border-b border-slate-800 bg-slate-950/40">
+                                    <th class="p-2.5">候補日時 (ステージ)</th>
+                                    <th class="p-2.5 text-center w-16 text-emerald-400">◯ 参加</th>
+                                    <th class="p-2.5 text-center w-16 text-rose-400">× 不可</th>
+                                    <th class="p-2.5 text-center w-20 text-amber-400">得点</th>
+                                    <th class="p-2.5 text-right">確定アクション</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60">
+                                ${candidateStats.map((st, idx) => {
+                                    const isBest = st.id === bestCandId && !poll.isDetermined;
+                                    return `
+                                        <tr class="${isBest ? 'bg-amber-500/10 font-bold' : ''}">
+                                            <td class="p-2.5 text-slate-200 font-bold flex items-center gap-2">
+                                                <span class="text-[10px] text-amber-400/80 font-game">STAGE ${idx + 1}</span>
+                                                <span>${escapeHtml(st.datetime)}</span>
+                                                ${isBest ? '<span class="bg-amber-500 text-slate-950 font-game text-[9px] px-1.5 py-0.5 rounded shadow">★最優秀日程</span>' : ''}
+                                            </td>
+                                            <td class="p-2.5 text-center text-emerald-400 font-black text-sm">${st.oCount}</td>
+                                            <td class="p-2.5 text-center text-rose-400 font-black text-sm">${st.xCount}</td>
+                                            <td class="p-2.5 text-center font-black text-amber-300 text-sm">${st.score}pt</td>
+                                            <td class="p-2.5 text-right">
+                                                ${!poll.isDetermined ? `
+                                                    <button onclick="confirmPollWinner('${poll.id}', '${escapeHtml(st.datetime)}')" class="px-3 py-1.5 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-bold rounded-lg text-[11px] border border-amber-500/30 transition-all">
+                                                        この日で確定
+                                                    </button>
+                                                ` : '<span class="text-slate-500 text-[11px]">確定済み</span>'}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        // 日程確定アクション
+        window.confirmPollWinner = async function(pollId, chosenDatetime) {
+            const poll = polls.find(p => p.id === pollId);
+            if (!poll || !currentUser) return;
+
+            // 日付抽出
+            const match = chosenDatetime.match(/\d{4}-\d{2}-\d{2}/);
+            const dateStr = match ? match[0] : new Date().toISOString().split('T')[0];
+
+            // 確定イベント登録
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'events'), {
+                title: poll.title,
+                date: dateStr,
+                time: chosenDatetime.replace(dateStr, '').trim(),
+                category: poll.category || 'event',
+                memo: `トロッコ調整「${poll.title}」にて確定`,
+                createdAt: new Date().toISOString()
+            });
+
+            // トロッコ状態を確定に変更
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'polls', pollId), {
+                isDetermined: true
+            }, { merge: true });
+
+            playSound('fanfare');
+            alert(`「${chosenDatetime}」で日程を確定し、全体カレンダーに即座に登録しました！`);
+        };
+
+        // TROLLEY GAME LOGIC
+        window.startTrolleyGame = function(pollId) {
+            const poll = polls.find(p => p.id === pollId);
+            const selectEl = document.getElementById(`responder-select-${pollId}`);
+            const memberId = selectEl ? selectEl.value : (members[0] ? members[0].id : null);
+            const member = members.find(m => m.id === memberId);
+
+            if (!poll || !member) {
+                alert('回答するメンバーを選択してください');
+                return;
+            }
+
+            currentGamePoll = poll;
+            currentGameResponder = member;
+            currentStageIndex = 0;
+            gameAnswers = {};
+
+            document.getElementById('trolley-responder-name').textContent = `回答者: ${member.name}`;
+            document.getElementById('trolley-game-modal').classList.remove('hidden');
+
+            renderTrolleyStage();
+            playSound('steer');
+        };
+
+        function renderTrolleyStage() {
+            const candidates = currentGamePoll.candidates || [];
+            if (currentStageIndex >= candidates.length) {
+                // ゲーム終了・送信処理
+                finishTrolleyGame();
+                return;
+            }
+
+            const cand = candidates[currentStageIndex];
+            document.getElementById('trolley-stage-badge').textContent = `STAGE ${currentStageIndex + 1} / ${candidates.length}`;
+            document.getElementById('trolley-candidate-title').textContent = cand.datetime;
+
+            // ドット指示器
+            const dotsContainer = document.getElementById('trolley-progress-dots');
+            dotsContainer.innerHTML = candidates.map((_, i) => `
+                <div class="w-3 h-3 rounded-full border border-amber-500/50 ${i === currentStageIndex ? 'bg-amber-400 animate-ping' : i < currentStageIndex ? 'bg-amber-500' : 'bg-slate-800'}"></div>
+            `).join('');
+
+            // 初期位置を「左 (◯)」に設定
+            setTrolleyDirection('O');
+        }
+
+        function setTrolleyDirection(dir) {
+            currentDirection = dir;
+            const cart = document.getElementById('trolley-cart');
+            const dirText = document.getElementById('trolley-direction-text');
+            const signLeft = document.getElementById('sign-left');
+            const signRight = document.getElementById('sign-right');
+
+            if (dir === 'O') {
+                cart.style.transform = 'translateX(-60px)';
+                dirText.textContent = '左 (◯ 行ける) へ傾き中';
+                signLeft.classList.add('glow-green', 'scale-105');
+                signRight.classList.remove('glow-red', 'scale-105');
+            } else {
+                cart.style.transform = 'translateX(60px)';
+                dirText.textContent = '右 (× 不可) へ傾き中';
+                signRight.classList.add('glow-red', 'scale-105');
+                signLeft.classList.remove('glow-green', 'scale-105');
+            }
+
+            playSound('steer');
+        }
+
+        window.chooseTrolleyOption = function(dir) {
+            playSound('select');
+            const cand = currentGamePoll.candidates[currentStageIndex];
+            gameAnswers[cand.id] = dir;
+
+            currentStageIndex++;
+            renderTrolleyStage();
+        };
+
+        async function finishTrolleyGame() {
+            if (!currentGamePoll || !currentGameResponder || !currentUser) return;
+
+            const existingResponses = currentGamePoll.responses || {};
+            const updatedResponses = {
+                ...existingResponses,
+                [currentGameResponder.id]: gameAnswers
+            };
+
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'polls', currentGamePoll.id), {
+                responses: updatedResponses
+            }, { merge: true });
+
+            playSound('fanfare');
+            alert(`全ステージクリア！ ${currentGameResponder.name} さんのトロッコ回答を保存しました！`);
+            closeTrolleyGameModal();
+        }
+
+        window.closeTrolleyGameModal = function() {
+            document.getElementById('trolley-game-modal').classList.add('hidden');
+        };
+
+        // CREATE POLL MODAL
+        window.openCreatePollModal = function() {
+            document.getElementById('create-poll-form').reset();
+            document.getElementById('poll-deadline-input').value = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+
+            const container = document.getElementById('candidates-input-container');
+            container.innerHTML = '';
+            
+            // 初期3問（3つの候補日ステージ）
+            addCandidateRow('2026-10-25(日) 14:00〜16:00');
+            addCandidateRow('2026-10-26(月) 19:00〜21:00');
+            addCandidateRow('2026-11-01(日) 13:00〜15:00');
+
+            document.getElementById('create-poll-modal').classList.remove('hidden');
+        };
+
+        window.closeCreatePollModal = function() {
+            document.getElementById('create-poll-modal').classList.add('hidden');
+        };
+
+        window.addCandidateRow = function(defaultVal = '') {
+            const container = document.getElementById('candidates-input-container');
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2';
+            row.innerHTML = `
+                <input type="text" placeholder="例: 10/25(日) 14:00〜16:00" value="${escapeHtml(defaultVal)}" class="cand-input flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs">
+                <button type="button" onclick="this.parentElement.remove()" class="p-1 text-slate-500 hover:text-rose-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            `;
+            container.appendChild(row);
+            lucide.createIcons();
+        };
+
+        window.handleSavePoll = async function(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const title = document.getElementById('poll-title-input').value.trim();
+            const deadline = document.getElementById('poll-deadline-input').value;
+            const category = document.getElementById('poll-category-input').value;
+            const note = document.getElementById('poll-note-input').value.trim();
+
+            const cInputs = document.querySelectorAll('.cand-input');
+            const candidates = [];
+            cInputs.forEach((inp, i) => {
+                const txt = inp.value.trim();
+                if (txt) candidates.push({ id: `stage_${i}_${Date.now()}`, datetime: txt });
+            });
+
+            if (!title || candidates.length === 0) return;
+
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'polls'), {
+                title, deadline, category, note, candidates,
+                responses: {},
+                isDetermined: false,
+                createdAt: new Date().toISOString()
+            });
+
+            closeCreatePollModal();
+        };
+
+        // MEMBER MODAL
+        window.openMemberModal = function() {
+            document.getElementById('new-member-name-input').value = '';
+            document.getElementById('add-member-modal').classList.remove('hidden');
+        };
+        window.closeMemberModal = function() {
+            document.getElementById('add-member-modal').classList.add('hidden');
+        };
+        window.saveMember = async function() {
+            const name = document.getElementById('new-member-name-input').value.trim();
+            if (!name || !currentUser) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), { name });
+            closeMemberModal();
+        };
+
+        // CALENDAR RENDER
+        let calCurrentDate = new Date();
+        function renderCalendar() {
+            const year = calCurrentDate.getFullYear();
+            const month = calCurrentDate.getMonth();
+            document.getElementById('calendar-month-year-label').textContent = `${year}年 ${month + 1}月`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const totalDays = new Date(year, month + 1, 0).getDate();
+            const grid = document.getElementById('calendar-grid-cells');
+            grid.innerHTML = '';
+
+            // 空白セル
+            for (let i = 0; i < firstDay; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+            for (let day = 1; day <= totalDays; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayEvts = events.filter(e => e.date === dateStr);
+
+                const cell = document.createElement('div');
+                cell.className = 'min-h-[70px] p-1.5 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col justify-between';
+                
+                cell.innerHTML = `
+                    <div class="text-xs font-bold text-slate-400 mb-1">${day}</div>
+                    <div class="space-y-1 overflow-hidden flex-1">
+                        ${dayEvts.map(ev => `
+                            <div class="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] p-1 rounded font-bold truncate">
+                                ${escapeHtml(ev.title)}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                grid.appendChild(cell);
+            }
+        }
+
+        window.calPrevMonth = function() { calCurrentDate.setMonth(calCurrentDate.getMonth() - 1); renderCalendar(); };
+        window.calNextMonth = function() { calCurrentDate.setMonth(calCurrentDate.getMonth() + 1); renderCalendar(); };
+        window.calGoToday = function() { calCurrentDate = new Date(); renderCalendar(); };
+
+        // UTILS
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // START
+        initApp();
+    </script>
+</body>
+</html>

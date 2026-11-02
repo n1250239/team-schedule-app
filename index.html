@@ -382,17 +382,18 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // FIREBASE SETUP
+       // FIREBASE SETUP
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'nepleague-schedule-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "demo-key",
-            authDomain: "demo.firebaseapp.com",
-            projectId: "demo-project",
-            storageBucket: "demo.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:demo"
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjuLw6Qrr2lbPx4sa3635zPER77WgOw0g",
+            authDomain: "team-schedule-app-31349.firebaseapp.com",
+            projectId: "team-schedule-app-31349",
+            storageBucket: "team-schedule-app-31349.firebasestorage.app",
+            messagingSenderId: "321655852484",
+            appId: "1:321655852484:web:71be665a445151533de891",
+            measurementId: "G-MXZLJ06HLR"
         };
-
+        
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);

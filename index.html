@@ -900,11 +900,13 @@
             document.getElementById('add-member-modal').classList.add('hidden');
         };
         window.saveMember = async function() {
-            const name = document.getElementById('new-member-name-input').value.trim();
-            if (!name || !currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), { name });
-            closeMemberModal();
-        };
+    const name = document.getElementById('new-member-name-input').value.trim();
+    if (!name || !currentUser) return;
+    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), { name });
+    closeMemberModal();
+    playSound('select');
+    alert(`「${name}」さんの追加が完了しました！`);
+};
 
         // CALENDAR RENDER
         let calCurrentDate = new Date();

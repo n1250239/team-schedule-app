@@ -378,6 +378,19 @@
 
     <!-- FIREBASE SDK & GAME LOGIC MODULE -->
     <script type="module">
+        // === アクセス制限（専用URLチェック） ===
+        const SECRET_KEY = "nepleague2026"; // ← 好きな合言葉（半角英数字）に変更可能
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (urlParams.get("key") !== SECRET_KEY) {
+            document.body.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0f172a; color:#f8fafc; font-family:sans-serif; text-align:center; padding:20px;">
+                    <h1 style="font-size:1.5rem; margin-bottom:10px; color:#f59e0b;">🔒 アクセス制限中</h1>
+                    <p style="color:#94a3b8;">このサイトはチームメンバー専用です。<br>共有された専用URLからアクセスしてください。</p>
+                </div>
+            `;
+            throw new Error("Unauthorized access");
+        }
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";

@@ -841,7 +841,15 @@
                             </div>
                         ` : ''}
                     </div>
-
+                    ${!poll.isDetermined ? `
+                        <div class="bg-slate-950/90 p-2.5 rounded-xl border border-emerald-500/30 flex items-center gap-2">
+                            <span class="text-[11px] font-bold text-emerald-400 shrink-0">回答用URL:</span>
+                            <input type="text" readonly value="${window.location.origin + window.location.pathname}?event=${poll.id}" onclick="this.select()" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono select-all focus:outline-none">
+                            <button onclick="copyInviteUrl('${poll.id}')" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs shrink-0 transition-all">
+                                コピー
+                            </button>
+                        </div>
+                    ` : ''}
                     ${poll.note ? `<p class="text-xs text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">${escapeHtml(poll.note)}</p>` : ''}
 
                     <!-- トロッコ候補日 スコア集計テーブル -->
@@ -1105,10 +1113,7 @@
 
             closeCreatePollModal();
             playSound('fanfare');
-
-            const baseUrl = window.location.origin + window.location.pathname;
-            const shareUrl = `${baseUrl}?event=${docRef.id}`;
-            alert(`トロッコ日程調整を作成しました！\n\n以下の「回答者用URL」をメンバーに共有してください：\n${shareUrl}`);
+            alert('トロッコ日程調整を作成しました！\n画面の「コピー」ボタンから回答者用URLをコピーして共有してください。');
         };
 
         // MEMBER MODAL
